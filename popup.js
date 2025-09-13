@@ -19,6 +19,7 @@ const pageInfo = document.getElementById('pageInfo');
 const focusModeBtn = document.getElementById('focusModeBtn');
 const projectTagInput = document.getElementById('projectTagInput');
 const sessionNotes = document.getElementById('sessionNotes');
+let suggestedDocs = [];
 let config = {};
 
 const USERS = ["Emircan", "Mükremin", "Umut", "Guest"];
@@ -127,6 +128,7 @@ function syncState() {
     if (!res) return;
     activeSession = res.activeSession;
     tasks = res.tasks || [];
+  suggestedDocs = res.suggestedDocs || [];
     config = res.config || {};
     if (activeSession) {
       startBtn.disabled = true;
@@ -143,6 +145,7 @@ function syncState() {
     }
     renderTasks();
   renderAllTasks();
+  renderSuggestedDocs();
     showConfigHint();
   });
 }
@@ -255,3 +258,30 @@ syncState();
 setInterval(updateTimer, 1000);
 // initial render for pagination containers
 renderAllTasks();
+
+function renderSuggestedDocs() {
+  let container = document.getElementById('suggestedDocs');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'suggestedDocs';
+    container.style.marginTop = '4px';
+    container.style.display = 'flex';
+    container.style.flexWrap = 'wrap';
+    container.style.gap = '4px';
+    const tasksPanel = document.querySelector('.tasks-panel');
+    tasksPanel?.parentNode?.insertBefore(container, tasksPanel.nextSibling);
+  }
+  container.innerHTML = '';
+  if (!suggestedDocs.length) return;
+  suggestedDocs.slice(-5).forEach(name => {
+    const btn = document.createElement('button');
+    btn.textContent = name.length>18? name.slice(0,17)+'…': name;
+    btn.className = 'ghost small';
+    btn.title = 'Log document: '+name;
+    btn.addEventListener('click', () => {
+      const user = userSelect.value || USERS[0];
+      chrome.runtime.sendMessage({ type:'LOG_DOCUMENT', meta:{ user, name } }, () => flashStatus('Logged: '+name));
+    });
+    container.appendChild(btn);
+  });
+}

@@ -172,29 +172,31 @@ Alignment with internal PDF (Sep 4, 2025):
 | Verifiable Integrity (server timestamps) | ✅ | sessionStart (server start) + sessionEnd (server end/duration) fallback to legacy single record |
 | Passive Activity Logging | ✅ | webNavigation + 60s active tab sampler (`sampleActiveTab`) |
 | Active Contribution Logging | ✅ | Manual document log; session aggregates `keyContributions` from docs list |
-| Project Tag per Session | ✅ | `projectTag` optional on start (UI input pending popup field) |
-| Activity Level Classification | ✅ | Derived from events per minute (High/Medium/Low) written on session end |
+| Project Tag per Session | ✅ | `projectTag` input in popup UI |
+| Activity Level Classification | ✅ | Derived from events per minute (High/Medium/Low) written on session end + shown in dashboard sessions table |
 | URLs Sample Capture | ✅ | First 5 unique domains stored as `urlsSample` |
 | Key Contributions Summary | ✅ | Up to 3 document names aggregated |
 | Weekly Performance Goal Tracking | ✅ | Weekly goal (40h) + progress bar; (future: threshold nudges) |
 | Automated Idle Auto-Stop | ✅ | chrome.idle with configurable minutes |
-| Forgotten Session Timeout (prolonged inactivity) | ⚠️ Partial | Idle auto-stop implemented; long-running (2h) flagged auto-end not separately flagged yet |
+| Forgotten Session Timeout (prolonged inactivity) | ✅ | Watchdog: 2h inactivity & 8h hard ceiling auto-stop with note |
 | Central Identity Control | ⚠️ Partial | Static USERS array; future: fetch allowed list from backend sheet |
 | Integrity: Server Timestamps | ✅ | sessionStart uses server time in Apps Script |
 | Automated Weekly Briefing (email) | ❌ | Not yet; would require Gmail API script weekly trigger |
 | Project-Based Filtering / Tags in Analytics | ❌ | Tag captured but not surfaced on dashboard UI yet |
 | Activity-Level Visualization | ❌ | Stored but not yet displayed |
 | Threshold Nudges (in-extension alerts) | ❌ | Not yet implemented |
-| Document Auto-Suggestion (detect active Docs) | ❌ | Currently manual logging only |
+| Document Auto-Suggestion (detect active Docs) | ✅ | Content script detects Docs/Sheets/Slides & surfaces quick log buttons |
 | Strategic Weekly Email Summary | ❌ | Not implemented (cron trigger placeholder) |
 | Role/Access Controls | ❌ | Not required yet; all users equal scope |
 
 ### Newly Added vs Previous Version
 - Split session model (`sessionStart` / `sessionEnd`) with authoritative server start time.
 - Extended Sessions sheet schema: ID, User, Start, End, DurationMinutes, ProjectTag, ActivityLevel, URLsSample, KeyContributions, Notes.
-- Activity level classification based on passive events per minute.
+- Activity level classification based on passive events per minute + dashboard display.
 - Active tab 60-second sampler for supplemental passive activity evidence.
 - Aggregation of unique domains + document names per session.
+- Watchdog (inactivity & max duration) + supportive weekly threshold nudge logic.
+- Google Docs/Sheets/Slides auto-suggestion (content script) added to popup.
 
 ### Follow-Up Implementation Candidates
 1. Popup: project tag input + optional notes on stop (UI layer not yet wired).

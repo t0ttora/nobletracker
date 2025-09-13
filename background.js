@@ -8,6 +8,7 @@ const USERS = ["Emircan", "Mükremin", "Umut", "Guest"]; // NOTE: For stricter i
 let activeSession = null; // { user, start, lastTick }
 let activityBuffer = []; // queued page/activity events to batch send
 let taskCache = []; // cached tasks from Sheets
+let suggestedDocs = []; // rotating list of auto-detected docs (recent)
 let sheetsEndpoint = null; // built from deploymentId in sync storage
 let consentLogging = false; // user consent flag from options
 let sharedSecret = null; // optional HMAC shared secret for signing
@@ -21,6 +22,10 @@ let perfEnabled = true; // local flag for perf telemetry (can future toggle)
 const ACTIVITY_FLUSH_INTERVAL_MS = 60_000; // flush every minute
 const HEARTBEAT_INTERVAL_MS = 1_000; // session timer tick
 const IDLE_TIMEOUT_MIN = 30; // auto-stop after 30 minutes idle (configurable future)
+const FORGOTTEN_SESSION_HOURS = 8; // hard ceiling for a single session
+const LONG_INACTIVITY_FLAG_HOURS = 2; // spec: end & flag after prolonged inactivity
+const WEEKLY_THRESHOLD_HOURS = 20; // mid-week supportive nudge example
+let lastInteractionTs = Date.now();
 // Endpoint is loaded dynamically; placeholder kept for reference only.
 
 async function init() {
@@ -72,7 +77,7 @@ function attachListeners() {
         return true;
         break;
     case 'GET_STATE':
-  sendResponse({ activeSession, tasks: taskCache, config: { sheetsEndpoint, consentLogging, hasSecret: !!sharedSecret, domainOnlyLogging, anonymizeUrls, omitTitles, enableTelemetry } });
+  sendResponse({ activeSession, tasks: taskCache, suggestedDocs, config: { sheetsEndpoint, consentLogging, hasSecret: !!sharedSecret, domainOnlyLogging, anonymizeUrls, omitTitles, enableTelemetry } });
         break;
       case 'ADD_TASK':
         addTask(msg.task, msg.user).then(t => sendResponse({ ok: true, task: t }));
@@ -95,6 +100,15 @@ function attachListeners() {
       case 'UNDO_TASK_STATUS':
         updateTaskStatus(msg.taskId, msg.previousStatus).then(t => sendResponse({ ok: true, task: t })).catch(e => sendResponse({ ok:false, error:e.message }));
         return true;
+      case 'DOC_SUGGEST':
+        if (msg.name && typeof msg.name === 'string') {
+          if (!suggestedDocs.includes(msg.name)) {
+            suggestedDocs.push(msg.name);
+            if (suggestedDocs.length > 5) suggestedDocs.shift();
+          }
+        }
+        sendResponse({ ok:true });
+        break;
       default:
         break;
     }
@@ -191,9 +205,12 @@ function startHeartbeat() {
     activeSession.lastTick = Date.now();
   chrome.runtime.sendMessage({ type: 'TICK', now: Date.now(), activeSession });
   updateBadge();
+  watchdogCheck();
   }, HEARTBEAT_INTERVAL_MS);
   // Active tab sampling every 60s for passive operational visibility
   setInterval(sampleActiveTab, 60_000);
+  // Weekly threshold nudge check every 30 min
+  setInterval(checkWeeklyThresholdNudge, 30 * 60 * 1000);
   // Idle detection
   try {
     chrome.idle.setDetectionInterval(idleMinutes * 60);
@@ -217,6 +234,7 @@ function queueActivity(evt) {
       const u = new URL(evt.url);
       activeSession.domains?.add(u.hostname.replace(/^www\./,''));
     } catch {/* ignore */}
+  lastInteractionTs = Date.now();
   }
   // simple cap to avoid unbounded growth offline
   if (activityBuffer.length > 500) activityBuffer.splice(0, activityBuffer.length - 500);
@@ -444,6 +462,45 @@ async function sampleActiveTab() {
     if (/^(chrome|edge|about|file):/i.test(url)) return;
     queueActivity({ type: 'activity', user: activeSession.user, url, title: omitTitles ? undefined : tabs[0].title, timestamp: new Date().toISOString(), sampled: true });
   } catch (e) {/* ignore */}
+}
+
+// ---- Watchdog for forgotten or inactive sessions ----
+function watchdogCheck() {
+  if (!activeSession) return;
+  const now = Date.now();
+  // Hard ceiling
+  const elapsedHrs = (now - new Date(activeSession.start).getTime()) / 3_600_000;
+  if (elapsedHrs >= FORGOTTEN_SESSION_HOURS) {
+    notify('Session auto-stopped (max duration)');
+    stopSession('[watchdog: max duration]');
+    return;
+  }
+  // Prolonged inactivity flag
+  const inactivityHrs = (now - lastInteractionTs) / 3_600_000;
+  if (inactivityHrs >= LONG_INACTIVITY_FLAG_HOURS) {
+    notify('Session ended after prolonged inactivity');
+    stopSession('[watchdog: inactivity]');
+  }
+}
+
+// ---- Weekly threshold supportive nudge ----
+let weeklyNudged = false;
+async function checkWeeklyThresholdNudge() {
+  if (!activeSession || weeklyNudged === true) return; // only while working & once
+  try {
+    if (!sheetsEndpoint) await loadConfig();
+    if (!sheetsEndpoint) return;
+    const res = await fetch(`${sheetsEndpoint}?user=${encodeURIComponent(activeSession.user)}&mode=dashboard`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data || typeof data.weeklyHours !== 'number') return;
+    const day = new Date().getDay(); // 0 Sun ... 6 Sat
+    // Example heuristic: by Thursday (>=4) if below threshold, nudge once.
+    if (day >= 4 && data.weeklyHours < WEEKLY_THRESHOLD_HOURS) {
+      notify(`You're at ${data.weeklyHours}h. Goal is ${WEEKLY_THRESHOLD_HOURS}h. Need any support?`);
+      weeklyNudged = true;
+    }
+  } catch {/* ignore */}
 }
 
 // Global error capture for telemetry
