@@ -17,6 +17,8 @@ const prevPageBtn = document.getElementById('prevPage');
 const nextPageBtn = document.getElementById('nextPage');
 const pageInfo = document.getElementById('pageInfo');
 const focusModeBtn = document.getElementById('focusModeBtn');
+const projectTagInput = document.getElementById('projectTagInput');
+const sessionNotes = document.getElementById('sessionNotes');
 let config = {};
 
 const USERS = ["Emircan", "Mükremin", "Umut", "Guest"];
@@ -130,10 +132,14 @@ function syncState() {
       startBtn.disabled = true;
       stopBtn.disabled = false;
       updateTimer();
+  document.querySelector('.notes-field').style.display='block';
+  if (projectTagInput) projectTagInput.disabled = true;
     } else {
       startBtn.disabled = false;
       stopBtn.disabled = true;
       timerDisplay.textContent = '00:00:00';
+  document.querySelector('.notes-field').style.display='none';
+  if (projectTagInput) projectTagInput.disabled = false;
     }
     renderTasks();
   renderAllTasks();
@@ -150,11 +156,13 @@ function showConfigHint() {
 startBtn.addEventListener('click', () => {
   const user = userSelect.value || USERS[0];
   localStorage.setItem('selectedUser', user);
-  chrome.runtime.sendMessage({ type: 'START_SESSION', user }, () => syncState());
+  const projectTag = (projectTagInput?.value || '').trim();
+  chrome.runtime.sendMessage({ type: 'START_SESSION', user, projectTag }, () => syncState());
 });
 
 stopBtn.addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: 'STOP_SESSION' }, () => syncState());
+  const notes = (sessionNotes?.value || '').trim();
+  chrome.runtime.sendMessage({ type: 'STOP_SESSION', notes }, () => { sessionNotes.value=''; syncState(); });
 });
 
 addTaskBtn.addEventListener('click', () => {

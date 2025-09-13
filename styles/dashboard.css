@@ -151,6 +151,16 @@ button.small { font-size:.55rem; padding:6px 10px; }
 /* Task new bar override to match flatten design */
 .new-task-bar { background:#0d0d0d; border:1px solid #1f1f1f; }
 
+/* Sessions History */
+.sessions-history { background:#0f0f0f; border:1px solid #262626; border-radius:18px; padding:18px 18px 12px; box-shadow:0 4px 14px -6px rgba(0,0,0,.6); }
+.sessions-table { width:100%; border-collapse:collapse; font-size:.6rem; }
+.sessions-table th { text-align:left; font-weight:600; padding:4px 6px 6px; font-size:.55rem; color:#7a7a7a; letter-spacing:.5px; border-bottom:1px solid #222; }
+.sessions-table td { padding:6px 6px; border-bottom:1px solid #181818; color:#c9c9c9; }
+.sessions-table tbody tr:last-child td { border-bottom:none; }
+.sessions-table td.act-high { color:#16a34a; font-weight:600; }
+.sessions-table td.act-medium { color:#f59e0b; font-weight:600; }
+.sessions-table td.act-low { color:#888; }
+
 
 @media (max-width:1100px) { .task-columns { flex-direction:column; } }
 @media (max-width:780px) { #root { padding:18px 16px 60px; } .search-wrapper { width:220px; } }

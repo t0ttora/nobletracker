@@ -15,9 +15,15 @@
     </header>
     <section class="session-block">
       <div class="timer" id="timerDisplay" aria-live="polite">00:00:00</div>
+      <div class="meta-fields">
+        <input id="projectTagInput" type="text" placeholder="Project tag (opt)" aria-label="Project tag" />
+      </div>
       <div class="session-actions">
         <button id="startBtn" class="primary">Start</button>
         <button id="stopBtn" class="danger" disabled>Stop</button>
+      </div>
+      <div class="notes-field" style="display:none;">
+        <textarea id="sessionNotes" rows="2" placeholder="Notes (saved on stop)" aria-label="Session notes"></textarea>
       </div>
     </section>
     <section class="quick-actions" aria-label="Quick actions">

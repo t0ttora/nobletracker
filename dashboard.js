@@ -22,6 +22,7 @@ const newTaskBar = document.getElementById('newTaskBar');
 const newTaskInput = document.getElementById('newTaskInput');
 const addTaskBtnDash = document.getElementById('addTaskBtnDash');
 const cancelTaskBtn = document.getElementById('cancelTaskBtn');
+const sessionsTableBody = document.querySelector('#sessionsTable tbody');
 
 // Keyboard shortcut to focus global search using '/'
 window.addEventListener('keydown', e => {
@@ -49,6 +50,7 @@ function fetchData() {
       return;
     }
     renderData(res.data || {});
+  fetchSessions();
   });
 }
 
@@ -178,6 +180,48 @@ function renderWeekRange() {
   const start = new Date(now); start.setDate(now.getDate() - day); start.setHours(0,0,0,0);
   const end = new Date(start); end.setDate(start.getDate() + 6);
   weekRange.textContent = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+}
+
+function fetchSessions() {
+  chrome.runtime.sendMessage({ type: 'GET_STATE' }, state => {
+    const endpoint = state?.config?.sheetsEndpoint;
+    if (!endpoint) return;
+    const user = dashUser.value;
+    fetch(`${endpoint}?user=${encodeURIComponent(user)}&mode=sessions`).then(r=>r.json()).then(rows => {
+      if (!Array.isArray(rows)) return;
+      renderSessions(rows.slice(-10).reverse());
+    }).catch(()=>{});
+  });
+}
+
+function renderSessions(rows) {
+  if (!sessionsTableBody) return;
+  sessionsTableBody.innerHTML='';
+  if (!rows.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td'); td.colSpan=6; td.textContent='No sessions'; td.className='empty-inline'; tr.appendChild(td); sessionsTableBody.appendChild(tr); return;
+  }
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    const start = r.startISO ? new Date(r.startISO) : null;
+    const dur = r.duration || 0;
+    const cols = [
+      start ? start.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '',
+      dur + 'm',
+      r.projectTag || '',
+      r.activityLevel || '',
+      (r.urlsSample||'').split(' ').slice(0,3).join(' '),
+      (r.keyContributions||'').split(' | ').slice(0,1).join('')
+    ];
+    cols.forEach(c => { const td=document.createElement('td'); td.textContent=c; tr.appendChild(td); });
+    // simple activity badge color
+    if (r.activityLevel) {
+      const td = tr.children[3];
+      const level = r.activityLevel.toLowerCase();
+      td.className = 'act-' + level;
+    }
+    sessionsTableBody.appendChild(tr);
+  });
 }
 
 // ---- Drag & Drop ----
