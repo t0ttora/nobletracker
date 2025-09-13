@@ -160,5 +160,50 @@ Proprietary – All rights reserved.
 This project is NOT open source. Source code, assets and documentation are provided solely for internal use within Nobleverse (and approved contractors under NDA). See the `LICENSE` file for full terms (NobleTracker Proprietary License v1.0). No redistribution, sublicensing, external hosting, or derivative public release is permitted without prior written consent.
 
 If the company later elects to open source the project, this section will be updated and a standard OSI license (e.g., MIT or Apache‑2.0) may replace the current proprietary terms.
+
+---
+## 15. Spec Coverage (Operational Framework \& Architecture)
+Alignment with internal PDF (Sep 4, 2025):
+
+| Spec Theme | Implemented | Notes |
+|------------|-------------|-------|
+| Granular Operational Visibility | ✅ | Session start/end + sampled & navigation activities, documents, tasks |
+| Centralized Hub (Chrome + Google Workspace) | ✅ | Extension + Apps Script + Sheets only |
+| Verifiable Integrity (server timestamps) | ✅ | sessionStart (server start) + sessionEnd (server end/duration) fallback to legacy single record |
+| Passive Activity Logging | ✅ | webNavigation + 60s active tab sampler (`sampleActiveTab`) |
+| Active Contribution Logging | ✅ | Manual document log; session aggregates `keyContributions` from docs list |
+| Project Tag per Session | ✅ | `projectTag` optional on start (UI input pending popup field) |
+| Activity Level Classification | ✅ | Derived from events per minute (High/Medium/Low) written on session end |
+| URLs Sample Capture | ✅ | First 5 unique domains stored as `urlsSample` |
+| Key Contributions Summary | ✅ | Up to 3 document names aggregated |
+| Weekly Performance Goal Tracking | ✅ | Weekly goal (40h) + progress bar; (future: threshold nudges) |
+| Automated Idle Auto-Stop | ✅ | chrome.idle with configurable minutes |
+| Forgotten Session Timeout (prolonged inactivity) | ⚠️ Partial | Idle auto-stop implemented; long-running (2h) flagged auto-end not separately flagged yet |
+| Central Identity Control | ⚠️ Partial | Static USERS array; future: fetch allowed list from backend sheet |
+| Integrity: Server Timestamps | ✅ | sessionStart uses server time in Apps Script |
+| Automated Weekly Briefing (email) | ❌ | Not yet; would require Gmail API script weekly trigger |
+| Project-Based Filtering / Tags in Analytics | ❌ | Tag captured but not surfaced on dashboard UI yet |
+| Activity-Level Visualization | ❌ | Stored but not yet displayed |
+| Threshold Nudges (in-extension alerts) | ❌ | Not yet implemented |
+| Document Auto-Suggestion (detect active Docs) | ❌ | Currently manual logging only |
+| Strategic Weekly Email Summary | ❌ | Not implemented (cron trigger placeholder) |
+| Role/Access Controls | ❌ | Not required yet; all users equal scope |
+
+### Newly Added vs Previous Version
+- Split session model (`sessionStart` / `sessionEnd`) with authoritative server start time.
+- Extended Sessions sheet schema: ID, User, Start, End, DurationMinutes, ProjectTag, ActivityLevel, URLsSample, KeyContributions, Notes.
+- Activity level classification based on passive events per minute.
+- Active tab 60-second sampler for supplemental passive activity evidence.
+- Aggregation of unique domains + document names per session.
+
+### Follow-Up Implementation Candidates
+1. Popup: project tag input + optional notes on stop (UI layer not yet wired).
+2. Dashboard: surface project tag column & activity level badge per session history (needs sessions view component).
+3. Background: long-session watchdog (e.g., force stop & flag after 2h idle-lack but still active timer).
+4. Apps Script: weekly timed trigger -> compile summary & send Gmail briefing.
+5. Content script enhancement: auto-suggest recent Google Docs/Sheets/Slides for quick add.
+6. Threshold nudges: compare mid-week hours vs goal with unobtrusive notification.
+
+These items remain intentionally deferred for incremental delivery.
 ---
 Questions & feedback welcome via Issues.

@@ -9,7 +9,11 @@ function doPost(e) {
     const sheetBundle = getSheets();
     let result;
     if (data.type === 'session') {
-      result = writeSession(sheetBundle.sessions, data);
+      result = writeLegacySession(sheetBundle.sessions, data);
+    } else if (data.type === 'sessionStart') {
+      result = startSessionRow(sheetBundle.sessions, data);
+    } else if (data.type === 'sessionEnd') {
+      result = endSessionRow(sheetBundle.sessions, data);
     } else if (data.type === 'activity') {
       result = writeActivity(sheetBundle.activities, data);
     } else if (data.type === 'task') {
@@ -50,7 +54,7 @@ function doGet(e) {
 // Ensures each sheet exists with proper headers; idempotent.
 function getSheets() {
   const ss = SpreadsheetApp.getActive();
-  const sessions = ensureSheet(ss, 'Sessions', ['Start', 'End', 'User', 'DurationMinutes']);
+  const sessions = ensureSheet(ss, 'Sessions', ['ID','User','Start','End','DurationMinutes','ProjectTag','ActivityLevel','URLsSample','KeyContributions','Notes']);
   const activities = ensureSheet(ss, 'Activities', ['Timestamp', 'User', 'URL', 'Title']);
   const tasks = ensureSheet(ss, 'Tasks', ['ID', 'User', 'Task', 'Status', 'CreatedAt', 'CompletedAt']);
   const documents = ensureSheet(ss, 'Documents', ['User', 'Name', 'Timestamp']);
@@ -86,9 +90,40 @@ function routeRecord(bundle, r) {
   throw new Error('Unknown batch record type');
 }
 
-function writeSession(sh, d) {
-  sh.appendRow([new Date(d.start), new Date(d.end), d.user, d.duration]);
-  return { ok: true };
+// Legacy (single payload)
+function writeLegacySession(sh, d) {
+  const id = 'S' + Date.now() + Math.floor(Math.random()*1000);
+  sh.appendRow([id, d.user, new Date(d.start), new Date(d.end), d.duration, d.projectTag||'', d.activityLevel||'', d.urlsSample||'', d.keyContributions||'', d.notes||'']);
+  return { id, ok: true };
+}
+
+// New split model
+function startSessionRow(sh, d) {
+  const id = 'S' + Date.now() + Math.floor(Math.random()*1000);
+  const start = new Date(); // authoritative server time
+  sh.appendRow([id, d.user, start, '', '', d.projectTag||'', '', '', '', '']);
+  return { id, start: start.toISOString() };
+}
+
+function endSessionRow(sh, d) {
+  const data = sh.getDataRange().getValues();
+  const now = new Date();
+  for (let i=1;i<data.length;i++) {
+    if (data[i][0] === d.id) {
+      const row = i+1;
+      const start = data[i][2];
+      const durationMin = Math.max(1, Math.round((now - start)/60000));
+      sh.getRange(row, 4).setValue(now); // End
+      sh.getRange(row, 5).setValue(durationMin); // Duration
+      sh.getRange(row, 7).setValue(d.activityLevel||'');
+      sh.getRange(row, 8).setValue(d.urlsSample||'');
+      sh.getRange(row, 9).setValue(d.keyContributions||'');
+      sh.getRange(row, 10).setValue(d.notes||'');
+      sh.getRange(row, 6).setValue(d.projectTag||'');
+      return { ok:true };
+    }
+  }
+  throw new Error('Session not found');
 }
 
 function writeActivity(sh, d) {
@@ -136,17 +171,18 @@ function buildDashboard(user) {
   let weeklyMinutes = 0;
   const dailyBuckets = new Array(7).fill(0); // minutes per weekday index (0=Sunday)
   sessions.slice(1).forEach(r => {
-    const start = r[0];
-    if (start >= startOfWeek && start < endOfWeek && r[2] === user) {
-      weeklyMinutes += (r[3] || 0);
-      dailyBuckets[start.getDay()] += (r[3] || 0);
+    const start = r[2];
+    if (!(start instanceof Date)) return;
+    if (start >= startOfWeek && start < endOfWeek && r[1] === user) {
+      weeklyMinutes += (r[4] || 0);
+      dailyBuckets[start.getDay()] += (r[4] || 0);
     }
   });
 
   const userTasks = tasks.slice(1).filter(r => r[1] === user).map(r => ({ id: r[0], task: r[2], status: r[3] }));
   const docs = documents.slice(1).filter(r => r[0] === user).map(r => ({ user: r[0], name: r[1], timestamp: r[2] }));
 
-  const teamHours = sessions.slice(1).reduce((acc, r) => acc + (r[3]||0), 0) / 60;
+  const teamHours = sessions.slice(1).reduce((acc, r) => acc + (r[4]||0), 0) / 60;
   const totalTasks = tasks.length - 1;
   const completedTasks = tasks.slice(1).filter(r => r[3] === 'DONE').length;
 
@@ -173,7 +209,7 @@ function listTasks(user) {
 function listSessions(user) {
   const sh = SpreadsheetApp.getActive().getSheetByName('Sessions');
   const data = sh.getDataRange().getValues();
-  return data.slice(1).filter(r => !user || r[2] === user).map(r => ({ startISO: r[0], endISO: r[1], user: r[2], duration: r[3] }));
+  return data.slice(1).filter(r => !user || r[1] === user).map(r => ({ id: r[0], user: r[1], startISO: r[2], endISO: r[3], duration: r[4], projectTag: r[5], activityLevel: r[6], urlsSample: r[7], keyContributions: r[8], notes: r[9] }));
 }
 
 function aggregateTopSites(activities, start, end, limit) {
@@ -201,8 +237,8 @@ function computeWeeklyTrend(sessions, user, count) {
     const start = new Date(end); start.setDate(start.getDate() - 6);
     let minutes = 0;
     sessions.slice(1).forEach(r => {
-      const sdate = r[0];
-      if (sdate >= start && sdate <= end && (!user || r[2] === user)) minutes += (r[3] || 0);
+      const sdate = r[2];
+      if (sdate >= start && sdate <= end && (!user || r[1] === user)) minutes += (r[4] || 0);
     });
     results.unshift({ weekStart: start, hours: +(minutes/60).toFixed(2) });
   }

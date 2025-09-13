@@ -1,9 +1,10 @@
 // background.js - session logic, timers, Sheets integration
 // Using ES module syntax (declared in manifest)
 
-const USERS = ["Emircan", "Mükremin", "Umut", "Guest"];
+const USERS = ["Emircan", "Mükremin", "Umut", "Guest"]; // NOTE: For stricter identity control, future: fetch from backend controlled list.
 
 // State stored in memory; persisted in chrome.storage for popup/dashboard sync
+// activeSession extended: { id, user, start, lastTick, projectTag, domains:Set, docs:[], activityEvents }
 let activeSession = null; // { user, start, lastTick }
 let activityBuffer = []; // queued page/activity events to batch send
 let taskCache = []; // cached tasks from Sheets
@@ -63,12 +64,12 @@ function attachListeners() {
     if (!msg || !msg.type) return;
     switch (msg.type) {
       case 'START_SESSION':
-        startSession(msg.user);
-        sendResponse({ ok: true, activeSession });
+        startSession(msg.user, msg.projectTag || null).then(()=> sendResponse({ ok: true, activeSession })).catch(e => sendResponse({ ok:false, error:e.message }));
+        return true;
         break;
       case 'STOP_SESSION':
-        stopSession();
-        sendResponse({ ok: true });
+        stopSession(msg.notes || null).then(()=> sendResponse({ ok: true })).catch(e => sendResponse({ ok:false, error:e.message }));
+        return true;
         break;
     case 'GET_STATE':
   sendResponse({ activeSession, tasks: taskCache, config: { sheetsEndpoint, consentLogging, hasSecret: !!sharedSecret, domainOnlyLogging, anonymizeUrls, omitTitles, enableTelemetry } });
@@ -130,24 +131,56 @@ function persistState() {
   chrome.storage.local.set({ activeSession });
 }
 
-function startSession(user) {
+async function startSession(user, projectTag) {
   if (activeSession) return; // already running
-  activeSession = { user, start: new Date().toISOString(), lastTick: Date.now() };
+  const localStart = new Date().toISOString();
+  // optimistic local state; server will assign authoritative start timestamp
+  activeSession = { id: null, user, start: localStart, lastTick: Date.now(), projectTag: projectTag || '', domains: new Set(), docs: [], activityEvents: 0 };
   persistState();
+  try {
+    const res = await resilientSend({ type: 'sessionStart', user });
+    if (res && res.id && res.start) {
+      activeSession.id = res.id;
+      activeSession.start = res.start; // replace with server authoritative time
+      persistState();
+    }
+  } catch (e) {
+    // fallback: will send legacy single record on stop if start failed
+    console.warn('sessionStart failed, will fallback to legacy session write', e.message);
+  }
 }
 
-function stopSession() {
+async function stopSession(notes) {
   if (!activeSession) return;
-  const end = new Date();
-  const durationMinutes = Math.round((end.getTime() - new Date(activeSession.start).getTime()) / 60000);
-  const payload = {
-    type: 'session',
-    user: activeSession.user,
-    start: activeSession.start,
-    end: end.toISOString(),
-    duration: durationMinutes
+  const sessionRef = activeSession; // capture
+  // aggregate metadata
+  const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(sessionRef.start).getTime()) / 60000));
+  const uniqueDomains = Array.from(sessionRef.domains || []);
+  const urlsSample = uniqueDomains.slice(0,5).join(' ');
+  const keyContributions = (sessionRef.docs || []).slice(0,3).join(' | ');
+  const eventsPerMin = sessionRef.activityEvents / Math.max(1, durationMinutes);
+  const activityLevel = eventsPerMin > 1.2 ? 'High' : eventsPerMin > 0.5 ? 'Medium' : 'Low';
+  const payloadEnd = {
+    type: sessionRef.id ? 'sessionEnd' : 'session',
+    id: sessionRef.id,
+    user: sessionRef.user,
+    start: sessionRef.start,
+    projectTag: sessionRef.projectTag || '',
+    urlsSample,
+    keyContributions,
+    activityLevel,
+    notes: notes || ''
   };
-  sendToSheets(payload).catch(console.error);
+  try {
+    if (payloadEnd.type === 'session') {
+      // legacy single payload write requires end + duration
+      payloadEnd.end = new Date().toISOString();
+      payloadEnd.duration = durationMinutes;
+    }
+    await resilientSend(payloadEnd);
+  } catch (e) {
+    console.error('sessionEnd error', e);
+  }
   activeSession = null;
   persistState();
 }
@@ -159,6 +192,8 @@ function startHeartbeat() {
   chrome.runtime.sendMessage({ type: 'TICK', now: Date.now(), activeSession });
   updateBadge();
   }, HEARTBEAT_INTERVAL_MS);
+  // Active tab sampling every 60s for passive operational visibility
+  setInterval(sampleActiveTab, 60_000);
   // Idle detection
   try {
     chrome.idle.setDetectionInterval(idleMinutes * 60);
@@ -176,6 +211,13 @@ function startHeartbeat() {
 function queueActivity(evt) {
   const transformed = transformActivity(evt);
   activityBuffer.push(transformed);
+  if (activeSession) {
+    activeSession.activityEvents = (activeSession.activityEvents || 0) + 1;
+    try {
+      const u = new URL(evt.url);
+      activeSession.domains?.add(u.hostname.replace(/^www\./,''));
+    } catch {/* ignore */}
+  }
   // simple cap to avoid unbounded growth offline
   if (activityBuffer.length > 500) activityBuffer.splice(0, activityBuffer.length - 500);
   persistActivityBuffer();
@@ -241,7 +283,12 @@ async function updateTaskStatus(taskId, status) {
 
 async function logDocument(meta) {
   const payload = { type: 'document', ...meta, timestamp: new Date().toISOString() };
-  return resilientSend(payload);
+  const res = await resilientSend(payload);
+  if (activeSession) {
+    activeSession.docs = activeSession.docs || [];
+    if (!activeSession.docs.includes(meta.name)) activeSession.docs.push(meta.name);
+  }
+  return res;
 }
 
 async function fetchDashboard(user) {
@@ -385,6 +432,18 @@ function updateBadge() {
     chrome.action.setBadgeBackgroundColor({ color: '#2563eb' });
     chrome.action.setBadgeText({ text: count > 99 ? '99+' : String(count) });
   }
+}
+
+// ---- Active Tab Sampler ----
+async function sampleActiveTab() {
+  if (!activeSession || !consentLogging) return;
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tabs || !tabs[0] || !tabs[0].url) return;
+    const url = tabs[0].url;
+    if (/^(chrome|edge|about|file):/i.test(url)) return;
+    queueActivity({ type: 'activity', user: activeSession.user, url, title: omitTitles ? undefined : tabs[0].title, timestamp: new Date().toISOString(), sampled: true });
+  } catch (e) {/* ignore */}
 }
 
 // Global error capture for telemetry
