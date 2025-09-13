@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Team Activity Tracker – Options</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; max-width: 600px; }
+    label { display:block; margin-top:16px; font-weight:600; }
+    input[type=text] { width:100%; padding:8px; }
+    code { background:#f3f4f6; padding:2px 4px; border-radius:4px; }
+    .note { font-size:0.8rem; color:#444; }
+  </style>
+</head>
+<body>
+  <h1>Options</h1>
+  <p>Configure Google Apps Script endpoint and privacy settings.</p>
+  <label>Google Apps Script Deployment ID
+    <input id="deploymentId" type="text" placeholder="AKfycb..." />
+  </label>
+  <label>Shared Secret (HMAC)
+    <input id="sharedSecret" type="text" placeholder="Optional secret for signing" />
+  </label>
+  <label>
+    <input id="consentLogging" type="checkbox" /> Enable browsing activity logging (requires user consent)
+  </label>
+  <fieldset style="margin-top:12px; padding:8px; border:1px solid #ddd;">
+    <legend style="font-size:0.8rem;">Privacy Modes</legend>
+    <label style="font-weight:normal; display:block;">
+      <input id="domainOnlyLogging" type="checkbox" /> Domain only (strip path)
+    </label>
+    <label style="font-weight:normal; display:block;">
+      <input id="anonymizeUrls" type="checkbox" /> Hash URL (SHA-256)
+    </label>
+    <label style="font-weight:normal; display:block;">
+      <input id="omitTitles" type="checkbox" /> Omit page titles
+    </label>
+  </fieldset>
+  <label style="margin-top:12px; display:block;">
+    <input id="enableTelemetry" type="checkbox" /> Enable error telemetry (anonymous)
+  </label>
+  <label style="margin-top:12px; display:block;">Idle Auto-Stop (minutes)
+    <input id="idleMinutes" type="number" min="1" max="240" value="30" style="width:120px;" />
+  </label>
+  <button id="saveBtn">Save</button>
+  <div id="savedMsg"></div>
+  <p class="note">The full endpoint will be: <code>https://script.google.com/macros/s/[ID]/exec</code>.</p>
+  <script>
+    const deploymentIdInput = document.getElementById('deploymentId');
+    const consentInput = document.getElementById('consentLogging');
+  const savedMsg = document.getElementById('savedMsg');
+  const sharedSecretInput = document.getElementById('sharedSecret');
+  const domainOnlyLoggingInput = document.getElementById('domainOnlyLogging');
+  const anonymizeUrlsInput = document.getElementById('anonymizeUrls');
+  const omitTitlesInput = document.getElementById('omitTitles');
+  const enableTelemetryInput = document.getElementById('enableTelemetry');
+  const idleMinutesInput = document.getElementById('idleMinutes');
+    const saveBtn = document.getElementById('saveBtn');
+
+    async function load() {
+  const cfg = await chrome.storage.sync.get(['deploymentId','consentLogging','sharedSecret','domainOnlyLogging','anonymizeUrls','omitTitles','enableTelemetry','idleMinutes']);
+      if (cfg.deploymentId) deploymentIdInput.value = cfg.deploymentId;
+      consentInput.checked = !!cfg.consentLogging;
+  if (cfg.sharedSecret) sharedSecretInput.value = cfg.sharedSecret;
+  domainOnlyLoggingInput.checked = !!cfg.domainOnlyLogging;
+  anonymizeUrlsInput.checked = !!cfg.anonymizeUrls;
+  omitTitlesInput.checked = !!cfg.omitTitles;
+  enableTelemetryInput.checked = !!cfg.enableTelemetry;
+  if (cfg.idleMinutes) idleMinutesInput.value = cfg.idleMinutes;
+    }
+
+    saveBtn.addEventListener('click', async () => {
+  const deploymentId = deploymentIdInput.value.trim();
+  const consentLogging = consentInput.checked;
+  const sharedSecret = sharedSecretInput.value.trim();
+  const domainOnlyLogging = domainOnlyLoggingInput.checked;
+  const anonymizeUrls = anonymizeUrlsInput.checked;
+  const omitTitles = omitTitlesInput.checked;
+  const enableTelemetry = enableTelemetryInput.checked;
+  const idleMinutes = Math.min(240, Math.max(1, parseInt(idleMinutesInput.value,10) || 30));
+  await chrome.storage.sync.set({ deploymentId, consentLogging, sharedSecret, domainOnlyLogging, anonymizeUrls, omitTitles, enableTelemetry, idleMinutes });
+      savedMsg.textContent = 'Saved';
+      setTimeout(()=> savedMsg.textContent = '', 2000);
+      chrome.runtime.sendMessage({ type: 'CONFIG_UPDATED' });
+    });
+
+    load();
+  </script>
+</body>
+</html>

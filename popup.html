@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NobleTracker Popup</title>
+  <link rel="stylesheet" href="styles/popup.css" />
+</head>
+<body>
+  <div id="app" class="shell">
+    <header class="app-bar">
+      <div class="brand">NobleTracker <span class="dot"></span></div>
+      <div class="user-select-wrap">
+        <select id="userSelect" aria-label="Select user"></select>
+      </div>
+    </header>
+    <section class="session-block">
+      <div class="timer" id="timerDisplay" aria-live="polite">00:00:00</div>
+      <div class="session-actions">
+        <button id="startBtn" class="primary">Start</button>
+        <button id="stopBtn" class="danger" disabled>Stop</button>
+      </div>
+    </section>
+    <section class="quick-actions" aria-label="Quick actions">
+      <button id="addTaskBtn" title="Add Task">Task</button>
+      <button id="completeTaskBtn" title="Complete Last Open Task">Done</button>
+      <button id="uploadBtn" title="Log Document">Doc</button>
+      <button id="flushBtn" title="Flush queued activity">Flush</button>
+    </section>
+    <section class="tasks-panel">
+      <div class="tasks-header">
+        <h4>Tasks</h4>
+        <input id="taskSearch" type="text" placeholder="Search" aria-label="Filter tasks" />
+      </div>
+      <ul id="tasksList" class="recent"></ul>
+      <div class="full-tasks" style="display:none;">
+        <ul id="allTasksList"></ul>
+        <div class="pager">
+          <button id="prevPage" disabled aria-label="Previous page">◀</button>
+          <span id="pageInfo"></span>
+          <button id="nextPage" disabled aria-label="Next page">▶</button>
+        </div>
+      </div>
+      <div class="tasks-footer">
+        <button id="toggleTasksBtn" class="ghost small">Show All</button>
+        <button id="focusModeBtn" class="ghost small">Focus Mode</button>
+      </div>
+    </section>
+    <div id="status" class="status" aria-live="polite"></div>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

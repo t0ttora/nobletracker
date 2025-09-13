@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NobleTracker</title>
+  <link rel="stylesheet" href="styles/dashboard.css" />
+</head>
+<body>
+  <div class="dashboard-shell">
+  <div id="root" class="main-card">
+    <header class="app-bar">
+      <div class="left">
+        <div class="brand">NobleTracker<span class="dot"></span></div>
+        <div class="search-wrapper enhanced">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input id="globalSearch" type="text" placeholder="Search Google or type a command..." aria-label="Global search" />
+          <button id="searchGo" class="search-btn" title="Search (Enter)">↵</button>
+          <kbd class="slash-hint">/</kbd>
+        </div>
+      </div>
+      <div class="right user-range">
+        <select id="dashUser"></select>
+        <span id="weekRange" class="week"></span>
+        <button id="refreshBtn" class="ghost">⟳</button>
+        <button id="exportBtn" title="Export sessions CSV" class="ghost">⬇︎</button>
+      </div>
+    </header>
+  <section class="stats grid">
+      <div class="card accent">
+        <h3 class="card-title">Weekly Hours</h3>
+        <div id="weeklyHours" class="metric"></div>
+        <div class="progress"><div id="hoursProgress"></div></div>
+  <div class="spark-wrap"><svg id="hoursSpark" width="120" height="30"></svg></div>
+      </div>
+  <div class="card box">
+        <h3 class="card-title">Top Sites</h3>
+        <ul id="topSites"></ul>
+      </div>
+  <div class="card box">
+        <h3 class="card-title">Documents</h3>
+        <ul id="documents"></ul>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Team Overview</h3>
+        <div id="teamOverview"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Weekly Trend</h3>
+        <div id="trendBars" style="display:flex; gap:4px; align-items:flex-end; height:60px;"></div>
+      </div>
+    </section>
+    <section class="tasks-board">
+      <div class="tasks-board-head">
+        <h2 class="section-title">My Tasks</h2>
+        <div class="task-actions">
+          <button id="toggleNewTask" class="ghost small" title="Add new task">+ Task</button>
+        </div>
+      </div>
+      <div id="newTaskBar" class="new-task-bar" style="display:none;">
+        <input id="newTaskInput" type="text" placeholder="Task title..." aria-label="New task title" />
+        <button id="addTaskBtnDash" class="primary small">Add</button>
+        <button id="cancelTaskBtn" class="ghost small" title="Cancel">✕</button>
+      </div>
+      <div class="task-columns">
+        <div class="col" data-status="TODO"><h4>TODO</h4><ul id="todoCol"></ul></div>
+        <div class="col" data-status="IN PROGRESS"><h4>IN PROGRESS</h4><ul id="progressCol"></ul></div>
+        <div class="col" data-status="DONE"><h4>DONE</h4><ul id="doneCol"></ul></div>
+      </div>
+    </section>
+    <div class="global-empty" id="globalEmpty" style="display:none;"></div>
+  </div>
+  </div>
+  <script type="module" src="dashboard.js"></script>
+  <script>
+    // Simple Google search integration
+    const input = document.getElementById('globalSearch');
+    const btn = document.getElementById('searchGo');
+    function doSearch() {
+      const q = input.value.trim();
+      if (!q) return;
+      window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank');
+    }
+    btn.addEventListener('click', doSearch);
+    input.addEventListener('keydown', e => { if (e.key==='Enter') doSearch(); });
+  </script>
+</body>
+</html>

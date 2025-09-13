@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "NobleTracker",
+  "short_name": "NobleTracker",
+  "version": "1.0.2",
+  "description": "NobleTracker: team session timing, tasks, documents & activity analytics (Sheets powered).",
+  "permissions": [
+    "storage",
+    "tabs",
+    "history",
+    "webNavigation",
+    "idle",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://script.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "NobleTracker"
+  },
+  "chrome_url_overrides": {
+    "newtab": "dashboard.html"
+  },
+  "icons": {
+    "16": "assets/icon16.png",
+    "32": "assets/icon32.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}

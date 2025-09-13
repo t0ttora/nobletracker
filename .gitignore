@@ -1,0 +1,22 @@
+# NobleTracker / Chrome Extension
+node_modules/
+# Build / dist (if you add bundling later)
+dist/
+build/
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# Env / secrets
+.env*
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+# Coverage / tests
+coverage/
+# Misc
+*.tmp
+*.swp
